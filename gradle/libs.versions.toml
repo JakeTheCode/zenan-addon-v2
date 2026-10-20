@@ -5,12 +5,12 @@ mod-version = "0.1.0"
 jdk = "21"
 minecraft = "1.21.11"
 yarn_mappings = "1.21.11+build.1"
-fabric-loader = "0.19.5"
+fabric-loader = "0.16.9"
 
-# Loom (Loom 1.14+ is required for 1.21.11's unpick format)
-loom = "1.14"
+# Loom (1.9.2 is the official version for 1.21.11)
+loom = "1.9.2"
 
-# Meteor
+# Meteor (This points to the Meteor branch for 1.21.11)
 meteor = "1.21.11-SNAPSHOT"
 
 [libraries]
@@ -20,5 +20,5 @@ fabric-loader = { module = "net.fabricmc:fabric-loader", version.ref = "fabric-l
 meteor-client = { module = "meteordevelopment:meteor-client", version.ref = "meteor" }
 
 [plugins]
-# CRITICAL: Use the remap variant for obfuscated versions like 1.21.11
+# Official plugin ID for 1.21.11
 fabric-loom = { id = "net.fabricmc.fabric-loom-remap", version.ref = "loom" }
