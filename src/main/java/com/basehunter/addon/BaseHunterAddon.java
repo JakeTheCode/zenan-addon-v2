@@ -18,22 +18,18 @@ public class BaseHunterAddon extends MeteorAddon {
         Modules.get().add(new BaseHunter("highway-scanner", "Scans highways."));
     }
 
-    @Override
     public void onRegisterCategories() {
         Modules.registerCategory(CATEGORY);
     }
 
-    @Override
     public String getPackage() {
         return "com.basehunter.addon";
     }
 
-    @Override
     public String getName() {
         return "Zenan Addon";
     }
 
-    @Override
     public String getAuthors() {
         return "jake";
     }
