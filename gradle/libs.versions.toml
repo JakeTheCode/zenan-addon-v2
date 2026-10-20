@@ -7,8 +7,8 @@ minecraft = "1.21.11"
 yarn_mappings = "1.21.11+build.1"
 fabric-loader = "0.19.5"
 
-# Loom (1.14 is compatible with the new Gradle version)
-loom = "1.14"
+# Loom (1.9.2 is the official version for 1.21.11)
+loom = "1.9.2"
 
 # Meteor
 meteor = "1.21.11-SNAPSHOT"
@@ -20,5 +20,5 @@ fabric-loader = { module = "net.fabricmc:fabric-loader", version.ref = "fabric-l
 meteor-client = { module = "meteordevelopment:meteor-client", version.ref = "meteor" }
 
 [plugins]
-# Use the legacy ID but with the new Loom version
-fabric-loom = { id = "fabric-loom", version.ref = "loom" }
+# Correct plugin ID for 1.21.11
+fabric-loom = { id = "net.fabricmc.fabric-loom-remap", version.ref = "loom" }
