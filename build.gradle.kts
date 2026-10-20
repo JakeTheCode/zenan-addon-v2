@@ -38,32 +38,11 @@ java {
     }
 }
 
-fun toMinecraftCompat(version: String): String {
-    val stable = Regex("""^(\d{2})\.([1-9]\d*)(?:\.(\d+))?$""")
-
-    stable.matchEntire(version)?.let {
-        val (year, drop, _) = it.destructured
-        return "~$year.$drop"
-    }
-
-    val pre = Regex("""^(\d{2})\.([1-9]\d*)-pre[-.](\d+)$""")
-    pre.matchEntire(version)?.let {
-        return version.replace("-pre-", "-pre.")
-    }
-
-    val rc = Regex("""^(\d{2})\.([1-9]\d*)-rc[-.](\d+)$""")
-    rc.matchEntire(version)?.let {
-        return version.replace("-rc-", "-rc.")
-    }
-
-    return version
-}
-
 tasks {
     processResources {
         val propertyMap = mapOf(
             "version" to project.version,
-            "minecraft_version" to toMinecraftCompat(libs.versions.minecraft.get()),
+            "minecraft_version" to libs.versions.minecraft.get(),
             "jdk_version" to libs.versions.jdk.get(),
         )
 
