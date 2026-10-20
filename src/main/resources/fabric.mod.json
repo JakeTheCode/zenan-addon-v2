@@ -1,16 +1,15 @@
 {
   "schemaVersion": 1,
-  "id": "addon-template",
+  "id": "zenan-addon",
   "version": "${version}",
-  "name": "Addon Template",
-  "description": "An addon template for Meteor Client addons.",
+  "name": "Zenan Addon",
+  "description": "Flags suspicious chunks.",
   "authors": [
-    "seasnail"
+    "jake"
   ],
   "contact": {
-    "sources": "https://github.com/MeteorDevelopment/meteor-addon-template"
+    "sources": "https://github.com/jakeTheCode/zenan-addon-v2"
   },
-  "icon": "assets/template/icon.png",
   "environment": "client",
   "entrypoints": {
     "meteor": [
