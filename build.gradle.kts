@@ -25,7 +25,7 @@ repositories {
 dependencies {
     // Fabric
     minecraft(libs.minecraft)
-    mappings(variantOf(libs.mappings) { classifier("v2") })
+    mappings(libs.mappings)
     implementation(libs.fabric.loader)
 
     // Meteor
