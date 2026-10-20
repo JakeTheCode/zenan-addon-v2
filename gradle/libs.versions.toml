@@ -5,10 +5,10 @@ mod-version = "0.1.0"
 jdk = "21"
 minecraft = "1.21.11"
 yarn_mappings = "1.21.11+build.1"
-fabric-loader = "0.16.9"
+fabric-loader = "0.18.1"
 
-# Loom (This version is confirmed to exist)
-loom = "1.8-SNAPSHOT"
+# Loom (Official version for 1.21.11)
+loom = "1.14"
 
 # Meteor
 meteor = "1.21.11-SNAPSHOT"
@@ -20,4 +20,5 @@ fabric-loader = { module = "net.fabricmc:fabric-loader", version.ref = "fabric-l
 meteor-client = { module = "meteordevelopment:meteor-client", version.ref = "meteor" }
 
 [plugins]
-fabric-loom = { id = "net.fabricmc.fabric-loom", version.ref = "loom" }
+# CRITICAL FIX: Use the legacy plugin ID for Minecraft 1.21.11
+fabric-loom = { id = "fabric-loom", version.ref = "loom" }
