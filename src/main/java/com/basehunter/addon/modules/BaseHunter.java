@@ -25,17 +25,17 @@ import meteordevelopment.meteorclient.utils.Utils;
 import meteordevelopment.meteorclient.utils.render.color.Color;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.sounds.SoundEvent;
-import net.minecraft.world.level.ChunkPos;
-import net.minecraft.world.level.Level;
-import net.minecraft.world.level.LightLayer;
-import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.phys.Vec3;
-import net.minecraft.world.entity.Entity;
+import net.minecraft.block.Block;
+import net.minecraft.block.BlockState;
+import net.minecraft.entity.Entity;
+import net.minecraft.registry.Registries;
+import net.minecraft.sound.SoundEvent;
+import net.minecraft.util.Identifier;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.ChunkPos;
+import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.LightType;
+import net.minecraft.world.World;
 
 import java.io.File;
 import java.io.FileReader;
@@ -179,7 +179,7 @@ public class BaseHunter extends Module {
         String[] paths = {"chest", "trapped_chest", "barrel", "ender_chest", "spawner", "beacon", "respawn_anchor"};
         List<Block> out = new ArrayList<>();
         for (String p : paths) { 
-            Block b = BuiltInRegistries.BLOCK.get(ResourceLocation.withDefaultNamespace(p)); 
+            Block b = Registries.BLOCK.get(Identifier.of("minecraft", p)); 
             if (b != null) out.add(b); 
         }
         return out.toArray(new Block[0]);
@@ -188,7 +188,7 @@ public class BaseHunter extends Module {
     @Override public void onActivate() {
         buildTable(); highlightSet = new HashSet<>(highlightBlocks.get());
         tick = 0; pending.clear(); inProgress.clear(); byDim.clear(); reports = new HashMap<>(); currentDim = "";
-        if (mc.level != null && mc.player != null) { loadResults(); switchDimension(); }
+        if (mc.world != null && mc.player != null) { loadResults(); switchDimension(); }
     }
     @Override public void onDeactivate() { saveResults(); pending.clear(); inProgress.clear(); byDim.clear(); reports = new HashMap<>(); currentDim = ""; }
     @Override public String getInfoString() { int n = 0; for (Report r : reports.values()) if (r.tier > 0) n++; return String.valueOf(n); }
@@ -197,9 +197,9 @@ public class BaseHunter extends Module {
     @EventHandler private void onGameLeft(GameLeftEvent event) { saveResults(); byDim.clear(); reports = new HashMap<>(); pending.clear(); inProgress.clear(); currentDim = ""; }
 
     private void buildTable() {
-        table.clear(); caveAirBlock = BuiltInRegistries.BLOCK.get(ResourceLocation.withDefaultNamespace("cave_air"));
-        for (Block b : BuiltInRegistries.BLOCK) {
-            ResourceLocation id = BuiltInRegistries.BLOCK.getKey(b); if (id == null) continue;
+        table.clear(); caveAirBlock = Registries.BLOCK.get(Identifier.of("minecraft", "cave_air"));
+        for (Block b : Registries.BLOCK) {
+            Identifier id = Registries.BLOCK.getId(b); if (id == null) continue;
             int packed = classify(id.getPath()); if (packed != 0) table.put(b, packed);
         }
     }
@@ -232,12 +232,12 @@ public class BaseHunter extends Module {
     private static boolean isEntranceLitter(String p) { return p.equals("ladder") || p.equals("scaffolding") || p.equals("torch") || p.equals("wall_torch") || p.equals("soul_torch") || p.equals("soul_wall_torch") || p.equals("lantern") || p.equals("rail") || p.equals("powered_rail") || p.equals("detector_rail") || p.equals("activator_rail"); }
 
     @EventHandler private void onChunkData(ChunkDataEvent event) {
-        if (mc.level == null) return; ChunkPos pos = event.chunk().getPos();
-        pending.put(((long)(pos.getMinBlockX() >> 4) << 32) | ((pos.getMinBlockZ() >> 4) & 0xFFFFFFFFL), tick + scanDelay.get());
+        if (mc.world == null) return; ChunkPos pos = event.chunk().getPos();
+        pending.put(((long)(pos.getStartX() >> 4) << 32) | ((pos.getStartZ() >> 4) & 0xFFFFFFFFL), tick + scanDelay.get());
     }
 
     @EventHandler private void onBlockUpdate(BlockUpdateEvent event) {
-        if (mc.level == null || mc.player == null) return;
+        if (mc.world == null || mc.player == null) return;
         BlockPos pos = event.pos; BlockState o = event.oldState, n = event.newState;
         if (o.getBlock() == n.getBlock()) return;
         boolean relevant = isInteresting(o) || isInteresting(n);
@@ -248,13 +248,13 @@ public class BaseHunter extends Module {
             double dx = pos.getX() + 0.5 - mc.player.getX(), dy = pos.getY() + 0.5 - mc.player.getY(), dz = pos.getZ() + 0.5 - mc.player.getZ();
             if (dx * dx + dy * dy + dz * dz < 144) return;
             boolean placedOrBroke = o.isAir() != n.isAir();
-            boolean meaningful = n.isAir() ? o.isSolidRender(mc.level, pos) || isInteresting(o) : n.isSolidRender(mc.level, pos) || isInteresting(n);
+            boolean meaningful = n.isAir() ? o.isSolidBlock(mc.world, pos) || isInteresting(o) : n.isSolidBlock(mc.world, pos) || isInteresting(n);
             if (placedOrBroke && meaningful) { Report r = reports.get(k); if (r != null && r.scanned) { r.activity++; rescore(r); } }
         }
     }
 
     @EventHandler private void onTick(TickEvent.Post event) {
-        if (mc.level == null || mc.player == null) return; tick++;
+        if (mc.world == null || mc.player == null) return; tick++;
         if (tick % 20 == 0 && !dimKey().equals(currentDim)) switchDimension();
         if (tick % 100 == 0) sweepUnscanned();
         if (tick % 40 == 0 && trackEntities.get() && !donutMode.get()) refreshEntities();
@@ -264,34 +264,34 @@ public class BaseHunter extends Module {
     }
 
     private String dimKey() {
-        if (mc.level.dimension() == Level.OVERWORLD) return "overworld";
-        if (mc.level.dimension() == Level.NETHER) return "nether";
-        if (mc.level.dimension() == Level.END) return "end";
+        if (mc.world.getRegistryKey() == World.OVERWORLD) return "overworld";
+        if (mc.world.getRegistryKey() == World.NETHER) return "nether";
+        if (mc.world.getRegistryKey() == World.END) return "end";
         return "other";
     }
 
     private void switchDimension() { currentDim = dimKey(); reports = byDim.computeIfAbsent(currentDim, d -> new HashMap<>()); pending.clear(); inProgress.clear(); queueNearby(); }
 
     private void queueNearby() {
-        BlockPos ppos = mc.player.blockPosition(); int pcx = ppos.getX() >> 4, pcz = ppos.getZ() >> 4; int r = scanRadius.get();
+        BlockPos ppos = mc.player.getBlockPos(); int pcx = ppos.getX() >> 4, pcz = ppos.getZ() >> 4; int r = scanRadius.get();
         for (int dx = -r; dx <= r; dx++) for (int dz = -r; dz <= r; dz++) {
             int cx = pcx + dx, cz = pcz + dz;
-            if (mc.level.getChunkSource().hasChunk(cx, cz)) pending.putIfAbsent(((long)cx << 32) | (cz & 0xFFFFFFFFL), tick + 1);
+            if (mc.world.getChunkManager().isChunkLoaded(cx, cz)) pending.putIfAbsent(((long)cx << 32) | (cz & 0xFFFFFFFFL), tick + 1);
         }
     }
 
     private void sweepUnscanned() {
-        BlockPos ppos = mc.player.blockPosition(); int pcx = ppos.getX() >> 4, pcz = ppos.getZ() >> 4; int r = scanRadius.get();
+        BlockPos ppos = mc.player.getBlockPos(); int pcx = ppos.getX() >> 4, pcz = ppos.getZ() >> 4; int r = scanRadius.get();
         for (int dx = -r; dx <= r; dx++) for (int dz = -r; dz <= r; dz++) {
             int cx = pcx + dx, cz = pcz + dz; long k = ((long)cx << 32) | (cz & 0xFFFFFFFFL); Report rep = reports.get(k);
-            if ((rep == null || !rep.scanned) && !pending.containsKey(k) && !inProgress.containsKey(k) && mc.level.getChunkSource().hasChunk(cx, cz)) pending.put(k, tick + 1);
+            if ((rep == null || !rep.scanned) && !pending.containsKey(k) && !inProgress.containsKey(k) && mc.world.getChunkManager().isChunkLoaded(cx, cz)) pending.put(k, tick + 1);
         }
     }
 
     private void processQueue() {
         if (pending.isEmpty() && inProgress.isEmpty()) return;
         long deadline = System.nanoTime() + (long) (budgetMs.get() * 1_000_000.0);
-        BlockPos ppos = mc.player.blockPosition(); int pcx = ppos.getX() >> 4, pcz = ppos.getZ() >> 4;
+        BlockPos ppos = mc.player.getBlockPos(); int pcx = ppos.getX() >> 4, pcz = ppos.getZ() >> 4;
         for (ChunkScan scan : new ArrayList<>(inProgress.values())) { continueScan(scan); if (System.nanoTime() >= deadline) return; }
         do {
             long best = 0, bestDist = Long.MAX_VALUE; boolean found = false;
@@ -301,27 +301,27 @@ public class BaseHunter extends Module {
             }
             if (!found) return; pending.remove(best);
             int cx = (int) (best >> 32), cz = (int) best;
-            ChunkScan scan = new ChunkScan(cx, cz, mc.level.getMinY(), mc.level.getHeight());
+            ChunkScan scan = new ChunkScan(cx, cz, mc.world.getBottomY(), mc.world.getHeight());
             inProgress.put(best, scan); continueScan(scan);
         } while (System.nanoTime() < deadline && !pending.isEmpty());
     }
 
     private void continueScan(ChunkScan scan) {
-        long deadline = System.nanoTime() + 2_000_000L; BlockPos.MutableBlockPos mp = new BlockPos.MutableBlockPos();
+        long deadline = System.nanoTime() + 2_000_000L; BlockPos.Mutable mp = new BlockPos.Mutable();
         while (scan.yCursor < scan.height) {
             int wy = scan.minY + scan.yCursor;
             for (int z = 0; z < 16; z++) for (int x = 0; x < 16; x++) {
-                mp.set(scan.baseX + x, wy, scan.baseZ + z); BlockState st = mc.level.getBlockState(mp);
+                mp.set(scan.baseX + x, wy, scan.baseZ + z); BlockState st = mc.world.getBlockState(mp);
                 int idx = (scan.yCursor * 16 + z) * 16 + x;
                 if (st.isAir()) { scan.cls[idx] = (byte) (st.getBlock() == caveAirBlock ? 2 : 1); continue; }
-                scan.cls[idx] = (byte) (st.isSolidRender(mc.level, mp) ? 0 : 3);
+                scan.cls[idx] = (byte) (st.isSolidBlock(mc.world, mp) ? 0 : 3);
                 Block b = st.getBlock(); Integer info = table.get(b);
                 if (info != null) {
                     int kind = (info & 0xF) - 1, sig = info >> 4;
                     if (sig != 0) { int add = (sig & S_STRONG) != 0 ? SIG_THRESHOLD : 1; for (int bit = 0; bit < 8; bit++) if ((sig & (1 << bit)) != 0) scan.sigCounts[bit] += add; }
                     if (kind >= 0) {
                         boolean count = true;
-                        if (kind == K_LIGHT && isOverworld()) count = wy < 56 && mc.level.getBrightness(LightLayer.BLOCK, mp) == 0;
+                        if (kind == K_LIGHT && isOverworld()) count = wy < 56 && mc.world.getLightLevel(LightType.BLOCK, mp) == 0;
                         if (count) { scan.r.counts[kind]++; if (kind != K_BUILD && kind != K_LIGHT) addEvidence(scan.r, wy); }
                     }
                 }
@@ -333,7 +333,7 @@ public class BaseHunter extends Module {
         finishScan(scan);
     }
 
-    private boolean isOverworld() { return mc.level.dimension() == Level.OVERWORLD; }
+    private boolean isOverworld() { return mc.world.getRegistryKey() == World.OVERWORLD; }
     
     private void finishScan(ChunkScan scan) {
         long key = ((long)scan.cx << 32) | (scan.cz & 0xFFFFFFFFL); inProgress.remove(key);
@@ -344,14 +344,14 @@ public class BaseHunter extends Module {
         reports.put(key, scan.r); rescore(scan.r);
     }
 
-    private void cleanup() { reports.entrySet().removeIf(e -> e.getValue().tier == 0 && !mc.level.getChunkSource().hasChunk(e.getValue().cx, e.getValue().cz)); }
+    private void cleanup() { reports.entrySet().removeIf(e -> e.getValue().tier == 0 && !mc.world.getChunkManager().isChunkLoaded(e.getValue().cx, e.getValue().cz)); }
 
     private void refreshEntities() {
         Map<Long, Integer> ec = new HashMap<>();
-        for (Entity e : mc.level.getEntities().getAll()) {
-            ResourceLocation id = BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()); if (id == null) continue; String p = id.getPath();
+        for (Entity e : mc.world.getEntities()) {
+            Identifier id = Registries.ENTITY_TYPE.getId(e.getType()); if (id == null) continue; String p = id.getPath();
             if (p.equals("item_frame") || p.equals("glow_item_frame") || p.equals("armor_stand") || p.equals("chest_minecart") || p.equals("hopper_minecart")) {
-                BlockPos bp = e.blockPosition(); ec.merge(((long)(bp.getX() >> 4) << 32) | ((bp.getZ() >> 4) & 0xFFFFFFFFL), 1, Integer::sum);
+                BlockPos bp = e.getBlockPos(); ec.merge(((long)(bp.getX() >> 4) << 32) | ((bp.getZ() >> 4) & 0xFFFFFFFFL), 1, Integer::sum);
             }
         }
         for (Map.Entry<Long, Integer> e : ec.entrySet()) {
@@ -461,7 +461,7 @@ public class BaseHunter extends Module {
             int lx = x + dx, lz = z + dz, ly = yy + dy;
             if (lx < 0 || lx > 15 || lz < 0 || lz > 15 || ly < 0 || ly >= scan.height) continue;
             BlockPos p = new BlockPos(scan.baseX + lx, scan.minY + ly, scan.baseZ + lz);
-            ResourceLocation id = BuiltInRegistries.BLOCK.getKey(mc.level.getBlockState(p).getBlock());
+            Identifier id = Registries.BLOCK.getId(mc.world.getBlockState(p).getBlock());
             if (id != null && isEntranceLitter(id.getPath())) scan.r.entranceLitter++;
         }
     }
@@ -534,7 +534,7 @@ public class BaseHunter extends Module {
         int x = (r.cx << 4) + 8, z = (r.cz << 4) + 8;
         info("Suspicious chunk (" + names[r.tier] + ") at " + x + ", " + z + " score " + r.score + ": " + r.reasons);
         if (alertSound.get() && mc.player != null) {
-            SoundEvent snd = BuiltInRegistries.SOUND_EVENT.get(ResourceLocation.withDefaultNamespace("entity.experience_orb.pickup"));
+            SoundEvent snd = Registries.SOUND_EVENT.get(Identifier.of("minecraft", "entity.experience_orb.pickup"));
             if (snd != null) mc.player.playSound(snd, 1.0f, 1.0f);
         }
     }
@@ -571,16 +571,16 @@ public class BaseHunter extends Module {
 
     @EventHandler
     private void onRender3D(Render3DEvent event) {
-        if (mc.player == null || mc.level == null) return;
-        BlockPos ppos = mc.player.blockPosition();
+        if (mc.player == null || mc.world == null) return;
+        BlockPos ppos = mc.player.getBlockPos();
         int pcx = ppos.getX() >> 4, pcz = ppos.getZ() >> 4;
         int rad = renderRadius.get();
         long rangeSq = (long) blockRange.get() * blockRange.get();
         double px = mc.player.getX(), py = mc.player.getY(), pz = mc.player.getZ();
-        Vec3 view = mc.player.getViewVector(event.tickDelta);
-        Vec3 pos = mc.player.getEyePosition();
+        Vec3d view = mc.player.getRotationVec(event.tickDelta);
+        Vec3d pos = mc.player.getEyePos();
         double sx = pos.x + view.x, sy = mc.player.getEyeHeight() + view.y, sz = pos.z + view.z;
-        int minY = mc.level.getMinY(), maxY = minY + mc.level.getHeight();
+        int minY = mc.world.getBottomY(), maxY = minY + mc.world.getHeight();
 
         for (Report r : reports.values()) {
             if (!r.blocks.isEmpty() && Math.max(Math.abs(r.cx - pcx), Math.abs(r.cz - pcz)) * 16 <= blockRange.get() + 16) {
@@ -710,7 +710,7 @@ public class BaseHunter extends Module {
     }
 
     private void rescanAll() {
-        if (mc.level == null || mc.player == null) return;
+        if (mc.world == null || mc.player == null) return;
         pending.clear(); inProgress.clear(); queueNearby();
         info("Rescanning nearby chunks.");
     }
@@ -719,7 +719,7 @@ public class BaseHunter extends Module {
         reports.clear(); byDim.clear(); byDim.put(currentDim, reports);
         pending.clear(); inProgress.clear(); dirty = true;
         info("Cleared BaseHunter results.");
-        if (mc.level != null && mc.player != null) queueNearby();
+        if (mc.world != null && mc.player != null) queueNearby();
     }
     
     private static long key(int cx, int cz) {
